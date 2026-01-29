@@ -27,7 +27,7 @@ Produto interno para IPAM + inventário de rede em GCP (sem Terraform), com API 
 ```
 
 ## Serviço principal
-`ipam-control-plane` (Node.js 20 + TypeScript + Fastify).
+`ipam-control-plane` (Node.js 20 + TypeScript + Fastify) — stack escolhida para o control-plane.
 
 ### Variáveis de ambiente
 - `DATABASE_URL` (obrigatório)
@@ -74,6 +74,7 @@ Para testar rapidamente o proxy em Cloud Run, use o script `scripts/08_gcp_ipam_
 
 ## Pesquisa de referência
 - Sumário da solução Infoblox vNIOS para Google Cloud: `docs/research/infoblox-vnios-google-cloud-summary.md`.
+- Opções de tecnologias para backend, bancos e discovery: `docs/technology-options.md`.
 
 ### Extensões planejadas/recém-adicionadas
 - `GET /ipam/pools/:name/summary` retorna métricas de utilização do pool (endereços totais, alocados, livres e por status).
