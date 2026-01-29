@@ -1,15 +1,19 @@
 import type { ReactNode } from "react";
 
 export interface Allocation {
-  id: number;
+  id: string;
   cidr: string;
-  vpc: string;
+  status: "reserved" | "created" | "deleted";
+  owner: string | null;
+  purpose: string | null;
+  host_project_id: string;
+  service_project_id: string | null;
+  network: string;
   region: string;
-  resource_type: string;
-  resource_name: string;
-  status: string;
-  created_by: string;
+  metadata: Record<string, unknown> | null;
+  expires_at: string | null;
   created_at: string;
+  updated_at: string;
 }
 
 export interface NavItem {
