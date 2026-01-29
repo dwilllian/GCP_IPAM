@@ -62,7 +62,8 @@ O backend principal roda em **Cloud Run** com **Node.js 20 + TypeScript + Fastif
 - **id** (uuid) — PK
 - **pool_id** (uuid) — FK `ipam_pools`
 - **cidr** (cidr) — bloco alocado
-- **status** (text) — `reserved|active|released`
+- **first_ip / last_ip** (bigint) — range numérico para conflitos
+- **status** (text) — `reserved|created|deleted`
 - **owner** (text) — time/sistema responsável
 - **purpose** (text) — finalidade
 - **host_project_id** (text) — Shared VPC host project
@@ -75,6 +76,7 @@ O backend principal roda em **Cloud Run** com **Node.js 20 + TypeScript + Fastif
 
 #### `inv_used_cidrs`
 - Inventário consolidado (subnets primárias/secundárias, routes, allocations).
+- Armazena `first_ip` e `last_ip` para detecção rápida de conflitos.
 
 #### `jobs`
 - Execução e tracking de jobs (discovery, etc.).
@@ -83,8 +85,8 @@ O backend principal roda em **Cloud Run** com **Node.js 20 + TypeScript + Fastif
 - Trilhas de auditoria de ações.
 
 ### 4.2 Migrations
-- `001_init.sql` — schema base.
-- `002_allocation_metadata.sql` — `service_project_id`, `metadata`, `expires_at`.
+- `001_init.sql` — schema base (pools, allocations, inventário, jobs, auditoria).
+- `002_allocation_metadata.sql` — ajustes para metadados e índices.
 
 ## 5) API (Fastify)
 
@@ -98,14 +100,17 @@ O backend principal roda em **Cloud Run** com **Node.js 20 + TypeScript + Fastif
 
 ### 5.2 Inventário
 - `GET /inventory/used-cidrs`
+- `GET /inventory/conflicts?cidr=...`
 - `GET /inventory/subnets`
 - `GET /inventory/routes`
 
 ### 5.3 Network
 - `POST /network/subnets/create`
+- `POST /network/subnets/delete`
 
 ### 5.4 Jobs
 - `POST /jobs/discovery/run`
+- `GET /jobs/:id`
 
 ### 5.5 Auditoria
 - `GET /audit`
@@ -114,6 +119,10 @@ O backend principal roda em **Cloud Run** com **Node.js 20 + TypeScript + Fastif
 - `POST /gcp/ipam/proxy`
   - Faz chamadas autenticadas para o IPAM GDCH.
   - Requer `GCP_IPAM_BASE_URL` e/ou token.
+
+### 5.7 Worker interno
+- `POST /worker/discovery` (protegido)
+- `POST /worker/expiration` (protegido, feature flag)
 
 ## 6) Fluxos principais
 
@@ -129,12 +138,13 @@ O backend principal roda em **Cloud Run** com **Node.js 20 + TypeScript + Fastif
 - Confronta CIDR com `inv_used_cidrs` e `ipam_allocations`.
 
 ### 6.3 Discovery
-- Job que coleta subnets/routes de projetos/hosts e alimenta `inv_used_cidrs`.
+- Job que coleta subnets/routes de projetos e alimenta `inv_used_cidrs`.
+- Snapshot por projeto: remove dados anteriores e reinserção consistente.
 
 ## 7) Integrações GCP
 
 ### 7.1 Autenticação
-- Token obtido via metadata server do Cloud Run (`computeMetadata/v1/instance/service-accounts/default/token`).
+- Token obtido via `google-auth-library` (metadata server).
 - Alternativamente, pode usar `GCP_IPAM_ACCESS_TOKEN`.
 
 ### 7.2 IPAM GDCH Proxy
@@ -147,15 +157,21 @@ O backend principal roda em **Cloud Run** com **Node.js 20 + TypeScript + Fastif
 ## 8) Configuração (env vars)
 
 - `DATABASE_URL`
+- `REQUEST_ID_HEADER`
+- `MAX_PAYLOAD_BYTES`
 - `TASKS_QUEUE_NAME`
 - `TASKS_LOCATION`
 - `TASKS_PROJECT_ID`
 - `TASKS_SERVICE_URL`
 - `TASKS_SERVICE_ACCOUNT`
+- `TASKS_AUTH_TOKEN`
 - `GCP_IPAM_BASE_URL`
 - `GCP_IPAM_ACCESS_TOKEN` (opcional)
 - `GCP_IPAM_TIMEOUT_MS`
 - `MOCK_GCP=true`
+- `FEATURE_EXPIRATION=true`
+- `FEATURE_RBAC=true`
+- `FEATURE_METRICS=false`
 
 ## 9) Scripts
 
@@ -170,7 +186,7 @@ O backend principal roda em **Cloud Run** com **Node.js 20 + TypeScript + Fastif
 ## 10) Observabilidade e auditoria
 
 - `audit_events` captura ações relevantes.
-- Recomenda-se: logs estruturados com request-id, latência, status e payload resumido.
+- Logs estruturados com request-id, latência, status e payload resumido.
 
 ## 11) Testes
 

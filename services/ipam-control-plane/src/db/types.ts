@@ -12,13 +12,15 @@ export type AllocationRow = {
   id: string;
   pool_id: string;
   cidr: string;
-  status: "reserved" | "active" | "released";
+  first_ip: string;
+  last_ip: string;
+  status: "reserved" | "created" | "deleted";
   owner: string | null;
   purpose: string | null;
-  host_project_id: string | null;
+  host_project_id: string;
   service_project_id: string | null;
-  network: string | null;
-  region: string | null;
+  network: string;
+  region: string;
   metadata: Record<string, unknown> | null;
   expires_at: string | null;
   created_at: string;
@@ -32,6 +34,7 @@ export type JobRow = {
   payload: unknown;
   result: unknown | null;
   attempts: number;
+  last_error: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -44,4 +47,5 @@ export type AuditRow = {
   request: unknown;
   result: unknown;
   ok: boolean;
+  request_id: string | null;
 };

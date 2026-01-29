@@ -48,6 +48,14 @@ export function cidrToRange(cidr: string): CidrRange {
   };
 }
 
+export function cidrToFirstLast(cidr: string): { firstIp: string; lastIp: string } {
+  const range = cidrToRange(cidr);
+  return {
+    firstIp: range.start.toString(),
+    lastIp: range.end.toString()
+  };
+}
+
 export function firstUsableIp(cidr: string): string {
   const range = cidrToRange(cidr);
   const first = range.start + 1n;
@@ -86,8 +94,29 @@ export function* candidateSubnets(parentCidr: string, cursorIp: string, prefixLe
   const cursorValue = ipToBigInt(cursorIp);
   const aligned = alignToPrefix(cursorValue, parent.start, prefixLength);
   const size = subnetSize(prefixLength);
-  for (let current = aligned; current + size - 1n <= parent.end; current += size) {
-    yield formatCidr(current, prefixLength);
+  const firstStart = parent.start;
+  const lastStart = parent.end - size + 1n;
+  const visited = new Set<string>();
+  const emit = (start: bigint) => {
+    const cidr = formatCidr(start, prefixLength);
+    if (!visited.has(cidr)) {
+      visited.add(cidr);
+      return cidr;
+    }
+    return null;
+  };
+
+  for (let current = aligned; current <= lastStart; current += size) {
+    const cidr = emit(current);
+    if (cidr) {
+      yield cidr;
+    }
+  }
+  for (let current = firstStart; current < aligned; current += size) {
+    const cidr = emit(current);
+    if (cidr) {
+      yield cidr;
+    }
   }
 }
 

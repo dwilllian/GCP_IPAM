@@ -1,5 +1,5 @@
 import { PoolClient } from "pg";
-import { deleteSubnetwork } from "../../gcp/compute.js";
+import { deleteSubnet } from "../../gcp/compute.js";
 import { insertAudit } from "../../db/audit.js";
 import { updateAllocationStatus } from "../../db/allocations.js";
 
@@ -12,14 +12,14 @@ export type SubnetDeletePayload = {
 };
 
 export async function handleSubnetDelete(client: PoolClient, payload: SubnetDeletePayload) {
-  await deleteSubnetwork({
-    projectId: payload.hostProjectId,
+  await deleteSubnet({
+    hostProjectId: payload.hostProjectId,
     region: payload.region,
     name: payload.subnetName
   });
 
   if (payload.allocationId) {
-    await updateAllocationStatus(client, payload.allocationId, "released");
+    await updateAllocationStatus(client, payload.allocationId, "deleted");
   }
 
   await insertAudit(client, {
@@ -27,6 +27,7 @@ export async function handleSubnetDelete(client: PoolClient, payload: SubnetDele
     action: "subnet_delete",
     request: payload,
     result: { ok: true },
-    ok: true
+    ok: true,
+    request_id: null
   });
 }

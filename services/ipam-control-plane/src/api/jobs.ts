@@ -2,15 +2,13 @@ import { FastifyInstance } from "fastify";
 import { withTransaction } from "../db/pool.js";
 import { getJobById } from "../db/jobs.js";
 import { runDiscovery } from "../flows/discoveryFlow/runDiscovery.js";
+import { AppError } from "../utils/errors.js";
 
 export async function jobsRoutes(app: FastifyInstance) {
   app.post("/jobs/discovery/run", async (request, reply) => {
-    const body = request.body as { scope?: "org" | "projects"; projects?: string[] };
-    if (!body?.scope) {
-      return reply.status(400).send({ error: "Campo obrigatório: scope" });
-    }
-    if (body.scope === "projects" && (!body.projects || body.projects.length === 0)) {
-      return reply.status(400).send({ error: "Para scope=projects informe projects[]" });
+    const body = request.body as { hostProjectId?: string; projectIds?: string[]; regions?: string[] };
+    if (!body?.hostProjectId) {
+      throw new AppError("VALIDATION_ERROR", 400, "Campo obrigatório: hostProjectId");
     }
     const job = await withTransaction((client) => runDiscovery(client, body));
     return reply.status(201).send(job);
@@ -20,7 +18,7 @@ export async function jobsRoutes(app: FastifyInstance) {
     const params = request.params as { id: string };
     const job = await withTransaction((client) => getJobById(client, params.id));
     if (!job) {
-      return reply.status(404).send({ error: "Job não encontrado" });
+      throw new AppError("VALIDATION_ERROR", 404, "Job não encontrado");
     }
     return reply.send(job);
   });

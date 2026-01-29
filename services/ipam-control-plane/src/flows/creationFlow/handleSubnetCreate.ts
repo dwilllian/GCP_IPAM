@@ -1,8 +1,9 @@
 import { PoolClient } from "pg";
 import { getAllocationById, updateAllocationStatus } from "../../db/allocations.js";
 import { findCidrConflicts, upsertUsedCidr } from "../../db/inventory.js";
-import { createSubnetwork } from "../../gcp/compute.js";
+import { createSubnet } from "../../gcp/compute.js";
 import { insertAudit } from "../../db/audit.js";
+import { cidrToFirstLast } from "../../utils/cidr.js";
 
 export type SubnetCreatePayload = {
   jobId: string;
@@ -21,38 +22,39 @@ export async function handleSubnetCreate(client: PoolClient, payload: SubnetCrea
     throw new Error("Allocation não está em status reserved");
   }
 
-  const conflicts = await findCidrConflicts(client, allocation.cidr);
-  if (conflicts.length > 0) {
-    throw new Error("CIDR em conflito no inventário");
-  }
-
   if (!allocation.host_project_id || !allocation.region || !allocation.network) {
     throw new Error("Allocation não possui metadados de rede");
   }
 
-  await createSubnetwork({
-    projectId: allocation.host_project_id,
+  const range = cidrToFirstLast(allocation.cidr);
+  const inventoryConflicts = await findCidrConflicts(client, range.firstIp, range.lastIp);
+  if (inventoryConflicts.length > 0) {
+    throw new Error("CIDR em conflito no inventário");
+  }
+
+  await createSubnet({
+    hostProjectId: allocation.host_project_id,
     region: allocation.region,
     name: payload.subnetName,
     network: allocation.network,
-    ipCidrRange: allocation.cidr,
+    primaryCidr: allocation.cidr,
     enablePrivateIpGoogleAccess: payload.enablePrivateGoogleAccess,
-    secondaryIpRanges: payload.secondaryRanges?.map((range) => ({
-      rangeName: range.name,
-      ipCidrRange: range.cidr
+    secondaryRanges: payload.secondaryRanges?.map((rangeItem) => ({
+      rangeName: rangeItem.name,
+      ipCidrRange: rangeItem.cidr
     }))
   });
 
-  await updateAllocationStatus(client, allocation.id, "active");
+  await updateAllocationStatus(client, allocation.id, "created");
   await upsertUsedCidr(client, {
     project_id: allocation.host_project_id,
-    folder_id: null,
     network: allocation.network,
     region: allocation.region,
-    source_type: "allocation",
+    source: "allocation",
     cidr: allocation.cidr,
-    resource_name: payload.subnetName,
-    self_link: null,
+    first_ip: range.firstIp,
+    last_ip: range.lastIp,
+    resource_id: payload.subnetName,
     meta: {
       allocationId: allocation.id
     }
@@ -63,6 +65,7 @@ export async function handleSubnetCreate(client: PoolClient, payload: SubnetCrea
     action: "subnet_create",
     request: payload,
     result: { allocationId: allocation.id, subnetName: payload.subnetName },
-    ok: true
+    ok: true,
+    request_id: null
   });
 }
