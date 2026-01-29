@@ -40,17 +40,23 @@ export function AllocationsSection({ allocations, loading, error }: AllocationsS
               >
                 <CardContent>
                   <Typography variant="subtitle2" color="text.secondary">
-                    {allocation.vpc} · {allocation.region}
+                    {allocation.network} · {allocation.region}
                   </Typography>
                   <Typography variant="h6" sx={{ fontWeight: 600 }}>
                     {allocation.cidr}
                   </Typography>
                   <Typography color="text.secondary">
-                    {allocation.resource_type} — {allocation.resource_name}
+                    Projeto host: {allocation.host_project_id}
                   </Typography>
                   <Typography variant="body2" sx={{ mt: 1 }}>
                     Status: {allocation.status}
                   </Typography>
+                  {allocation.owner && (
+                    <Typography variant="body2">Responsável: {allocation.owner}</Typography>
+                  )}
+                  {allocation.purpose && (
+                    <Typography variant="body2">Finalidade: {allocation.purpose}</Typography>
+                  )}
                 </CardContent>
               </Card>
             </Grid>

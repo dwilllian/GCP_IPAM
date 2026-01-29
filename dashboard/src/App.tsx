@@ -5,13 +5,13 @@ import { useEffect, useState } from "react";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 
 import { AllocationsSection } from "./components/AllocationsSection";
-import { LoginCard, type LoginFormState } from "./components/LoginCard";
 import { NavigationSidebar } from "./components/NavigationSidebar";
 import { NetworkSectionPage } from "./components/NetworkSectionPage";
 import { SectionPage } from "./components/SectionPage";
 import { navSections } from "./data/navSections";
 import { pageContentByPath } from "./data/pageContent";
 import type { Allocation } from "./types";
+import { fetchAllocations, fetchHealth } from "./api/ipamClient";
 
 const theme = createTheme({
   palette: {
@@ -31,94 +31,46 @@ const theme = createTheme({
 const drawerWidth = 280;
 const drawerCollapsedWidth = 84;
 
-type AuthState = {
-  token: string;
-};
-
 function DashboardApp() {
   const [allocations, setAllocations] = useState<Allocation[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const apiBaseUrl = import.meta.env.VITE_API_BASE_URL ?? "/api";
-  const normalizedApiBaseUrl = apiBaseUrl.endsWith("/")
-    ? apiBaseUrl.slice(0, -1)
-    : apiBaseUrl;
-  const [auth, setAuth] = useState<AuthState | null>(() => {
-    const token = localStorage.getItem("ipam.token");
-    return token ? { token } : null;
-  });
   const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [authLoading, setAuthLoading] = useState(false);
-  const [authError, setAuthError] = useState<string | null>(null);
+  const [health, setHealth] = useState<string>("Verificando...");
 
-  const fetchAllocations = async () => {
+  const loadAllocations = async () => {
     setLoading(true);
     setError(null);
     try {
-      const response = await fetch(`${normalizedApiBaseUrl}/allocations`, {
-        headers: auth?.token
-          ? {
-              Authorization: `Bearer ${auth.token}`,
-            }
-          : undefined,
-      });
-      if (!response.ok) {
-        throw new Error("Falha ao carregar alocações.");
-      }
-      const data = (await response.json()) as Allocation[];
+      const data = await fetchAllocations();
       setAllocations(data);
-    } catch (err) {
+    } catch (err: unknown) {
       setAllocations([]);
-      setError(err instanceof Error ? err.message : "Erro inesperado.");
+      if (err && typeof err === "object" && "message" in err) {
+        setError(String(err.message));
+      } else {
+        setError("Erro inesperado.");
+      }
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    if (auth?.token) {
-      fetchAllocations();
-    }
-  }, [auth?.token]);
-
-  const handleLogin = async (payload: LoginFormState) => {
-    setAuthLoading(true);
-    setAuthError(null);
-    try {
-      const response = await fetch(`${normalizedApiBaseUrl}/login`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(payload),
+    loadAllocations();
+    fetchHealth()
+      .then((data) => {
+        setHealth(`${data.service} · ${data.version}`);
+      })
+      .catch(() => {
+        setHealth("Indisponível");
       });
-      if (!response.ok) {
-        throw new Error("Credenciais inválidas.");
-      }
-      const data = (await response.json()) as { token: string };
-      localStorage.setItem("ipam.token", data.token);
-      setAuth({ token: data.token });
-    } catch (err) {
-      setAuthError(err instanceof Error ? err.message : "Erro inesperado.");
-    } finally {
-      setAuthLoading(false);
-    }
-  };
-
-  const handleLogout = () => {
-    localStorage.removeItem("ipam.token");
-    setAuth(null);
-    setAllocations([]);
-  };
-
-  if (!auth) {
-    return <LoginCard onLogin={handleLogin} error={authError} loading={authLoading} />;
-  }
+  }, []);
 
   return (
     <Box sx={{ display: "flex" }}>
       <NavigationSidebar
-        onLogout={handleLogout}
+        onLogout={() => setAllocations([])}
         open={sidebarOpen}
         drawerWidth={drawerWidth}
         drawerCollapsedWidth={drawerCollapsedWidth}
@@ -134,7 +86,10 @@ function DashboardApp() {
                 Centro de operações de rede
               </Typography>
               <Box sx={{ flexGrow: 1 }} />
-              <Button color="primary" variant="outlined" onClick={fetchAllocations}>
+              <Typography color="text.secondary" sx={{ mr: 2 }}>
+                API: {health}
+              </Typography>
+              <Button color="primary" variant="outlined" onClick={loadAllocations}>
                 Atualizar dados
               </Button>
             </Toolbar>
