@@ -1,0 +1,102 @@
+import ipaddr from "ipaddr.js";
+
+export type CidrRange = {
+  start: bigint;
+  end: bigint;
+  prefixLength: number;
+};
+
+const IPV4_BITS = 32n;
+
+export function ipToBigInt(ip: string): bigint {
+  const parsed = ipaddr.parse(ip);
+  if (parsed.kind() !== "ipv4") {
+    throw new Error("Somente IPv4 é suportado no MVP");
+  }
+  const bytes = parsed.toByteArray();
+  return bytes.reduce((acc, byte) => (acc << 8n) + BigInt(byte), 0n);
+}
+
+export function bigIntToIp(value: bigint): string {
+  const bytes = [
+    Number((value >> 24n) & 255n),
+    Number((value >> 16n) & 255n),
+    Number((value >> 8n) & 255n),
+    Number(value & 255n)
+  ];
+  return bytes.join(".");
+}
+
+export function cidrToRange(cidr: string): CidrRange {
+  const [ip, prefixRaw] = cidr.split("/");
+  if (!ip || !prefixRaw) {
+    throw new Error("CIDR inválido");
+  }
+  const prefixLength = Number(prefixRaw);
+  if (Number.isNaN(prefixLength) || prefixLength < 0 || prefixLength > 32) {
+    throw new Error("Prefixo inválido");
+  }
+  const base = ipToBigInt(ip);
+  const hostBits = IPV4_BITS - BigInt(prefixLength);
+  const mask = (1n << IPV4_BITS) - (1n << hostBits);
+  const network = base & mask;
+  const size = 1n << hostBits;
+  return {
+    start: network,
+    end: network + size - 1n,
+    prefixLength
+  };
+}
+
+export function firstUsableIp(cidr: string): string {
+  const range = cidrToRange(cidr);
+  const first = range.start + 1n;
+  return bigIntToIp(first);
+}
+
+export function subnetSize(prefixLength: number): bigint {
+  const hostBits = IPV4_BITS - BigInt(prefixLength);
+  return 1n << hostBits;
+}
+
+export function alignToPrefix(value: bigint, parentStart: bigint, prefixLength: number): bigint {
+  const size = subnetSize(prefixLength);
+  const offset = value - parentStart;
+  if (offset <= 0n) {
+    return parentStart;
+  }
+  const remainder = offset % size;
+  if (remainder === 0n) {
+    return value;
+  }
+  return value + (size - remainder);
+}
+
+export function formatCidr(start: bigint, prefixLength: number): string {
+  return `${bigIntToIp(start)}/${prefixLength}`;
+}
+
+export function* candidateSubnets(parentCidr: string, cursorIp: string, prefixLength: number) {
+  const parent = cidrToRange(parentCidr);
+  const cursorValue = ipToBigInt(cursorIp);
+  const aligned = alignToPrefix(cursorValue, parent.start, prefixLength);
+  const size = subnetSize(prefixLength);
+  for (let current = aligned; current + size - 1n <= parent.end; current += size) {
+    yield formatCidr(current, prefixLength);
+  }
+}
+
+export function nextCursorIp(parentCidr: string, lastAllocated: string, prefixLength: number): string {
+  const parent = cidrToRange(parentCidr);
+  const [ip] = lastAllocated.split("/");
+  if (!ip) {
+    throw new Error("CIDR inválido");
+  }
+  const start = ipToBigInt(ip);
+  const size = subnetSize(prefixLength);
+  const next = start + size;
+  if (next > parent.end) {
+    return bigIntToIp(parent.start + 1n);
+  }
+  return bigIntToIp(next);
+}
