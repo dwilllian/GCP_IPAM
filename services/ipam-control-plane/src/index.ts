@@ -9,6 +9,10 @@ const app = Fastify({
   bodyLimit: config.maxPayloadBytes
 });
 
+if (config.mockGcp) {
+  throw new Error("MOCK_GCP não é permitido no ambiente atual.");
+}
+
 app.register(requestId, {
   headerName: config.requestIdHeaderName
 });

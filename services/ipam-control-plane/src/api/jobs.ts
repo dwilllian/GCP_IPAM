@@ -7,11 +7,14 @@ import { AppError } from "../utils/errors.js";
 export async function jobsRoutes(app: FastifyInstance) {
   app.post("/jobs/discovery/run", async (request, reply) => {
     const body = request.body as { hostProjectId?: string; projectIds?: string[]; regions?: string[] };
+    const hostProjectId = body?.hostProjectId;
+    if (!hostProjectId) {
     if (!body?.hostProjectId) {
       throw new AppError("VALIDATION_ERROR", 400, "Campo obrigatório: hostProjectId");
     }
     const job = await withTransaction((client) =>
       runDiscovery(client, {
+        hostProjectId,
         hostProjectId: body.hostProjectId,
         projectIds: body.projectIds,
         regions: body.regions
@@ -23,10 +26,12 @@ export async function jobsRoutes(app: FastifyInstance) {
 
   app.get("/jobs/:id", async (request, reply) => {
     const params = request.params as { id: string };
+    const jobRecord = await withTransaction((client) => getJobById(client, params.id));
+    if (!jobRecord) {
     const job = await withTransaction((client) => getJobById(client, params.id));
     if (!job) {
       throw new AppError("VALIDATION_ERROR", 404, "Job não encontrado");
     }
-    return reply.send(job);
+    return reply.send(jobRecord);
   });
 }
