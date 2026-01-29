@@ -39,18 +39,23 @@ export async function listSubnets(projectId: string, region?: string): Promise<S
     aggregatedList: (req: { project: string }) => Promise<[Record<string, unknown>]>;
   };
   const [subnets] = await clientWithAggregated.aggregatedList({ project: projectId });
+  const [subnets] = await (subnetworksClient as unknown as {
+    aggregatedList: (req: { project: string }) => Promise<[Record<string, unknown>]>;
+  }).aggregatedList({ project: projectId });
   const result: SubnetInfo[] = [];
   for (const [, scoped] of Object.entries((subnets as { items?: Record<string, unknown> }).items ?? {})) {
     const scopedValue = scoped as { subnetworks?: Array<Record<string, unknown>> };
     for (const subnet of scopedValue.subnetworks ?? []) {
       const subnetRegion = subnet.region as string | undefined;
       if (region && subnetRegion && !subnetRegion.includes(region)) {
+      if (region && subnet.region && !subnet.region.includes(region)) {
         continue;
       }
       result.push({
         name: (subnet.name as string) ?? "",
         network: (subnet.network as string) ?? null,
         region: subnetRegion ?? null,
+        region: (subnet.region as string) ?? null,
         ipCidrRange: (subnet.ipCidrRange as string) ?? "",
         secondaryIpRanges:
           (subnet.secondaryIpRanges as Array<Record<string, unknown>> | undefined)?.map((range) => ({
