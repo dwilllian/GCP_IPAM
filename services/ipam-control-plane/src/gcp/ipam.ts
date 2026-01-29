@@ -1,3 +1,4 @@
+import { GoogleAuth } from "google-auth-library";
 import { config } from "../utils/config.js";
 
 type IpamRequestOptions = {
@@ -12,32 +13,28 @@ type IpamResponse<T> = {
   data: T;
 };
 
-const METADATA_TOKEN_URL =
-  "http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/token";
+const auth = new GoogleAuth({
+  scopes: ["https://www.googleapis.com/auth/cloud-platform"]
+});
 
 async function getAccessToken(): Promise<string> {
   if (config.gcpIpamAccessToken) {
     return config.gcpIpamAccessToken;
   }
-  const response = await fetch(METADATA_TOKEN_URL, {
-    method: "GET",
-    headers: {
-      "Metadata-Flavor": "Google"
-    }
-  });
-  if (!response.ok) {
-    throw new Error(`Falha ao obter token do metadata server: ${response.status}`);
-  }
-  const payload = (await response.json()) as { access_token?: string };
-  if (!payload.access_token) {
+  const client = await auth.getClient();
+  const token = await client.getAccessToken();
+  if (!token || !token.token) {
     throw new Error("Token do metadata server não encontrado.");
   }
-  return payload.access_token;
+  return token.token;
 }
 
 export async function ipamRequest<T = unknown>(options: IpamRequestOptions): Promise<IpamResponse<T>> {
   if (!config.gcpIpamBaseUrl) {
     throw new Error("GCP_IPAM_BASE_URL não configurado.");
+  }
+  if (config.mockGcp) {
+    return { status: 200, data: { mock: true, path: options.path, body: options.body } as T };
   }
   const token = await getAccessToken();
   const url = new URL(options.path, config.gcpIpamBaseUrl);

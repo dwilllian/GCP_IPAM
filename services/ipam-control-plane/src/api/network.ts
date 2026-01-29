@@ -1,8 +1,8 @@
 import { FastifyInstance } from "fastify";
-import { v4 as uuidv4 } from "uuid";
 import { withTransaction } from "../db/pool.js";
-import { insertJob } from "../db/jobs.js";
-import { enqueueTask } from "../utils/tasks.js";
+import { handleSubnetCreate } from "../flows/creationFlow/handleSubnetCreate.js";
+import { handleSubnetDelete } from "../flows/deletionFlow/handleSubnetDelete.js";
+import { AppError } from "../utils/errors.js";
 
 export async function networkRoutes(app: FastifyInstance) {
   app.post("/network/subnets/create", async (request, reply) => {
@@ -13,50 +13,40 @@ export async function networkRoutes(app: FastifyInstance) {
       secondaryRanges?: { name: string; cidr: string }[];
     };
     if (!body?.allocationId || !body.subnetName) {
-      return reply.status(400).send({ error: "Campos obrigatórios: allocationId, subnetName" });
+      throw new AppError("VALIDATION_ERROR", 400, "Campos obrigatórios: allocationId, subnetName");
     }
-    const jobId = uuidv4();
-    const job = await withTransaction((client) =>
-      insertJob(client, {
-        id: jobId,
-        type: "subnet_create",
-        status: "queued",
-        payload: body
+    const { allocationId, subnetName } = body;
+    await withTransaction((client) =>
+      handleSubnetCreate(client, {
+        jobId: "sync",
+        allocationId,
+        subnetName,
+        enablePrivateGoogleAccess: body.enablePrivateGoogleAccess,
+        secondaryRanges: body.secondaryRanges
       })
     );
-    await enqueueTask({
-      type: "subnet_create",
-      jobId,
-      allocationId: body.allocationId,
-      subnetName: body.subnetName,
-      enablePrivateGoogleAccess: body.enablePrivateGoogleAccess,
-      secondaryRanges: body.secondaryRanges
-    });
-    return reply.status(202).send(job);
+    return reply.status(200).send({ ok: true });
   });
 
-  app.delete("/network/subnets", async (request, reply) => {
+  app.post("/network/subnets/delete", async (request, reply) => {
     const body = request.body as { hostProjectId?: string; region?: string; subnetName?: string; allocationId?: string };
     if (!body?.hostProjectId || !body.region || !body.subnetName) {
-      return reply.status(400).send({ error: "Campos obrigatórios: hostProjectId, region, subnetName" });
+      throw new AppError(
+        "VALIDATION_ERROR",
+        400,
+        "Campos obrigatórios: hostProjectId, region, subnetName"
+      );
     }
-    const jobId = uuidv4();
-    const job = await withTransaction((client) =>
-      insertJob(client, {
-        id: jobId,
-        type: "subnet_delete",
-        status: "queued",
-        payload: body
+    const { hostProjectId, region, subnetName } = body;
+    await withTransaction((client) =>
+      handleSubnetDelete(client, {
+        jobId: "sync",
+        hostProjectId,
+        region,
+        subnetName,
+        allocationId: body.allocationId
       })
     );
-    await enqueueTask({
-      type: "subnet_delete",
-      jobId,
-      hostProjectId: body.hostProjectId,
-      region: body.region,
-      subnetName: body.subnetName,
-      allocationId: body.allocationId
-    });
-    return reply.status(202).send(job);
+    return reply.status(200).send({ ok: true });
   });
 }
