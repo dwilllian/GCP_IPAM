@@ -1,0 +1,65 @@
+### Health
+GET http://localhost:8080/health
+
+### Criar pool 10.0.0.0/8
+POST http://localhost:8080/ipam/pools
+Content-Type: application/json
+
+{
+  "name": "shared-prod",
+  "parentCidr": "10.0.0.0/8",
+  "allowedPrefixes": [22, 24]
+}
+
+### Rodar discovery
+POST http://localhost:8080/jobs/discovery/run
+Content-Type: application/json
+
+{
+  "scope": "projects",
+  "projects": ["shared-host-01", "spoke-01"]
+}
+
+### Allocate /22
+POST http://localhost:8080/ipam/allocate
+Content-Type: application/json
+
+{
+  "poolName": "shared-prod",
+  "prefixLength": 22,
+  "region": "us-west1",
+  "hostProjectId": "host-net-prd",
+  "network": "vpc-spoke-prd",
+  "owner": "team-apigee",
+  "purpose": "apigee-range"
+}
+
+### Validate /22
+POST http://localhost:8080/ipam/validate-cidr
+Content-Type: application/json
+
+{
+  "cidr": "10.0.8.0/22"
+}
+
+### Create subnet com allocation
+POST http://localhost:8080/network/subnets/create
+Content-Type: application/json
+
+{
+  "allocationId": "<allocation-id>",
+  "subnetName": "sb-app-01",
+  "enablePrivateGoogleAccess": true,
+  "secondaryRanges": [
+    { "name": "pods", "cidr": "10.40.0.0/16" }
+  ]
+}
+
+### Listar used-cidrs
+GET http://localhost:8080/inventory/used-cidrs
+
+### Listar subnets
+GET http://localhost:8080/inventory/subnets?hostProjectId=host-net-prd&region=us-west1&network=vpc-spoke-prd
+
+### Listar routes
+GET http://localhost:8080/inventory/routes?projectId=host-net-prd
