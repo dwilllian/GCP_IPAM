@@ -17,6 +17,7 @@ export async function jobsRoutes(app: FastifyInstance) {
         regions: body.regions
       })
     );
+    const job = await withTransaction((client) => runDiscovery(client, body));
     return reply.status(201).send(job);
   });
 
