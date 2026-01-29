@@ -1,5 +1,8 @@
 import { FastifyInstance } from "fastify";
 import { ipamRequest } from "../gcp/ipam.js";
+import { withTransaction } from "../db/pool.js";
+import { insertAudit } from "../db/audit.js";
+import { AppError } from "../utils/errors.js";
 
 type ProxyBody = {
   method?: "GET" | "POST" | "PATCH" | "DELETE";
@@ -12,7 +15,7 @@ export async function gcpIpamRoutes(app: FastifyInstance) {
   app.post("/gcp/ipam/proxy", async (request, reply) => {
     const payload = request.body as ProxyBody;
     if (!payload?.path) {
-      return reply.status(400).send({ error: "Campo obrigatório: path" });
+      throw new AppError("VALIDATION_ERROR", 400, "Campo obrigatório: path");
     }
     try {
       const response = await ipamRequest({
@@ -21,9 +24,30 @@ export async function gcpIpamRoutes(app: FastifyInstance) {
         query: payload.query,
         body: payload.body
       });
+      await withTransaction((client) =>
+        insertAudit(client, {
+          actor: null,
+          action: "gcp_ipam_proxy",
+          request: payload,
+          result: { status: response.status },
+          ok: true,
+          request_id: request.id
+        })
+      );
       return reply.status(response.status).send(response.data);
     } catch (error) {
-      return reply.status(502).send({ error: (error as Error).message });
+      const message = (error as Error).message;
+      await withTransaction((client) =>
+        insertAudit(client, {
+          actor: null,
+          action: "gcp_ipam_proxy",
+          request: payload,
+          result: { error: message },
+          ok: false,
+          request_id: request.id
+        })
+      );
+      throw new AppError("INTERNAL", 502, message);
     }
   });
 }

@@ -26,6 +26,8 @@ export async function insertAllocation(
     | "id"
     | "pool_id"
     | "cidr"
+    | "first_ip"
+    | "last_ip"
     | "status"
     | "owner"
     | "purpose"
@@ -39,13 +41,15 @@ export async function insertAllocation(
 ): Promise<AllocationRow> {
   const result = await client.query<AllocationRow>(
     `INSERT INTO ipam_allocations
-      (id, pool_id, cidr, status, owner, purpose, host_project_id, service_project_id, network, region, metadata, expires_at)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
+      (id, pool_id, cidr, first_ip, last_ip, status, owner, purpose, host_project_id, service_project_id, network, region, metadata, expires_at)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
      RETURNING *`,
     [
       allocation.id,
       allocation.pool_id,
       allocation.cidr,
+      allocation.first_ip,
+      allocation.last_ip,
       allocation.status,
       allocation.owner,
       allocation.purpose,
@@ -82,24 +86,36 @@ export async function updateAllocationNetworkData(
   );
 }
 
-export async function existsAllocationConflict(client: PoolClient, cidr: string): Promise<boolean> {
+export async function existsAllocationConflict(
+  client: PoolClient,
+  firstIp: string,
+  lastIp: string
+): Promise<boolean> {
   const result = await client.query<{ exists: boolean }>(
     `SELECT EXISTS(
         SELECT 1 FROM ipam_allocations
-        WHERE status IN ('reserved','active') AND cidr && $1::cidr
+        WHERE status != 'deleted'
+          AND (expires_at IS NULL OR expires_at > NOW())
+          AND first_ip <= $1 AND last_ip >= $2
         LIMIT 1
      ) AS exists`,
-    [cidr]
+    [lastIp, firstIp]
   );
   return result.rows[0]?.exists ?? false;
 }
 
-export async function listAllocationConflicts(client: PoolClient, cidr: string): Promise<AllocationRow[]> {
+export async function listAllocationConflicts(
+  client: PoolClient,
+  firstIp: string,
+  lastIp: string
+): Promise<AllocationRow[]> {
   const result = await client.query<AllocationRow>(
     `SELECT * FROM ipam_allocations
-     WHERE status IN ('reserved','active') AND cidr && $1::cidr
+     WHERE status != 'deleted'
+       AND (expires_at IS NULL OR expires_at > NOW())
+       AND first_ip <= $1 AND last_ip >= $2
      ORDER BY updated_at DESC`,
-    [cidr]
+    [lastIp, firstIp]
   );
   return result.rows;
 }

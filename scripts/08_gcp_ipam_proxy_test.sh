@@ -19,3 +19,5 @@ curl -sS -X POST "${API_BASE_URL}/gcp/ipam/proxy" \
 }
 JSON
 )"
+
+curl -sS "${API_BASE_URL}/audit?action=gcp_ipam_proxy&limit=5"

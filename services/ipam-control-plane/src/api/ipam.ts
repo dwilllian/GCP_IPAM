@@ -5,7 +5,8 @@ import { allocateFromPool } from "../flows/creationFlow/allocateFromPool.js";
 import { getPoolByName, insertPool, listPools } from "../db/pools.js";
 import { listAllocationConflicts, listAllocations, listAllocationsByPool } from "../db/allocations.js";
 import { findCidrConflicts } from "../db/inventory.js";
-import { cidrSize, firstUsableIp } from "../utils/cidr.js";
+import { cidrSize, cidrToFirstLast, firstUsableIp } from "../utils/cidr.js";
+import { AppError } from "../utils/errors.js";
 
 export async function ipamRoutes(app: FastifyInstance) {
   app.get("/ipam/pools", async (_request, reply) => {
@@ -16,7 +17,7 @@ export async function ipamRoutes(app: FastifyInstance) {
   app.get("/ipam/pools/:name/summary", async (request, reply) => {
     const params = request.params as { name?: string };
     if (!params?.name) {
-      return reply.status(400).send({ error: "Campo obrigatório: name" });
+      throw new AppError("VALIDATION_ERROR", 400, "Campo obrigatório: name");
     }
     const summary = await withTransaction(async (client) => {
       const pool = await getPoolByName(client, params.name!);
@@ -27,56 +28,64 @@ export async function ipamRoutes(app: FastifyInstance) {
       return { pool, allocations };
     });
     if (!summary) {
-      return reply.status(404).send({ error: "Pool não encontrado" });
+      throw new AppError("POOL_NOT_FOUND", 404, "Pool não encontrado");
     }
 
     const totalAddresses = cidrSize(summary.pool.parent_cidr);
-    let activeAddresses = 0n;
+    let createdAddresses = 0n;
     let reservedAddresses = 0n;
-    let releasedAddresses = 0n;
-    let activeCount = 0;
+    let deletedAddresses = 0n;
+    let createdCount = 0;
     let reservedCount = 0;
-    let releasedCount = 0;
+    let deletedCount = 0;
+    const byPrefix: Record<string, number> = {};
 
     for (const allocation of summary.allocations) {
       const size = cidrSize(allocation.cidr);
-      if (allocation.status === "active") {
-        activeAddresses += size;
-        activeCount += 1;
+      const prefixLength = allocation.cidr.split("/")[1] ?? "";
+      if (prefixLength) {
+        byPrefix[prefixLength] = (byPrefix[prefixLength] ?? 0) + 1;
+      }
+      if (allocation.status === "created") {
+        createdAddresses += size;
+        createdCount += 1;
       } else if (allocation.status === "reserved") {
         reservedAddresses += size;
         reservedCount += 1;
       } else {
-        releasedAddresses += size;
-        releasedCount += 1;
+        deletedAddresses += size;
+        deletedCount += 1;
       }
     }
 
-    const allocatedAddresses = activeAddresses + reservedAddresses;
-    const availableAddresses = totalAddresses - allocatedAddresses;
+    const usedAddresses = createdAddresses + reservedAddresses;
+    const availableAddresses = totalAddresses - usedAddresses;
     const utilizationPercent =
-      totalAddresses === 0n ? 0 : Number((allocatedAddresses * 10000n) / totalAddresses) / 100;
+      totalAddresses === 0n ? 0 : Number((usedAddresses * 10000n) / totalAddresses) / 100;
 
     return reply.send({
       pool: summary.pool,
-      totals: {
-        totalAddresses: totalAddresses.toString(),
-        allocatedAddresses: allocatedAddresses.toString(),
-        availableAddresses: availableAddresses.toString(),
-        utilizationPercent
-      },
-      byStatus: {
-        active: { count: activeCount, addresses: activeAddresses.toString() },
+      totalIps: totalAddresses.toString(),
+      usedIps: usedAddresses.toString(),
+      freeIps: availableAddresses.toString(),
+      utilizationPct: utilizationPercent,
+      countsByStatus: {
         reserved: { count: reservedCount, addresses: reservedAddresses.toString() },
-        released: { count: releasedCount, addresses: releasedAddresses.toString() }
-      }
+        created: { count: createdCount, addresses: createdAddresses.toString() },
+        deleted: { count: deletedCount, addresses: deletedAddresses.toString() }
+      },
+      countsByPrefix: byPrefix
     });
   });
 
   app.post("/ipam/pools", async (request, reply) => {
     const body = request.body as { name?: string; parentCidr?: string; allowedPrefixes?: number[] };
     if (!body?.name || !body.parentCidr || !body.allowedPrefixes?.length) {
-      return reply.status(400).send({ error: "Campos obrigatórios: name, parentCidr, allowedPrefixes" });
+      throw new AppError(
+        "VALIDATION_ERROR",
+        400,
+        "Campos obrigatórios: name, parentCidr, allowedPrefixes"
+      );
     }
     const pool = await withTransaction((client) =>
       insertPool(client, {
@@ -102,9 +111,14 @@ export async function ipamRoutes(app: FastifyInstance) {
       purpose?: string;
       metadata?: Record<string, unknown>;
       expiresAt?: string;
+      dryRun?: boolean;
     };
     if (!body?.poolName || !body.prefixLength || !body.region || !body.hostProjectId || !body.network) {
-      return reply.status(400).send({ error: "Campos obrigatórios: poolName, prefixLength, region, hostProjectId, network" });
+      throw new AppError(
+        "VALIDATION_ERROR",
+        400,
+        "Campos obrigatórios: poolName, prefixLength, region, hostProjectId, network"
+      );
     }
     try {
       const result = await withTransaction((client) =>
@@ -118,30 +132,35 @@ export async function ipamRoutes(app: FastifyInstance) {
           owner: body.owner,
           purpose: body.purpose,
           metadata: body.metadata,
-          expiresAt: body.expiresAt
+          expiresAt: body.expiresAt,
+          dryRun: body.dryRun
         })
       );
       return reply.status(201).send(result);
     } catch (error) {
       const message = (error as Error).message;
       if (message.includes("Nenhum bloco livre")) {
-        return reply.status(507).send({ error: message });
+        throw new AppError("NO_AVAILABLE_BLOCK", 409, message);
       }
-      if (message.includes("Pool não encontrado") || message.includes("Prefixo não permitido")) {
-        return reply.status(409).send({ error: message });
+      if (message.includes("Pool não encontrado")) {
+        throw new AppError("POOL_NOT_FOUND", 404, message);
       }
-      return reply.status(500).send({ error: message });
+      if (message.includes("Prefixo não permitido")) {
+        throw new AppError("INVALID_PREFIX", 400, message);
+      }
+      throw new AppError("INTERNAL", 500, message);
     }
   });
 
   app.post("/ipam/validate-cidr", async (request, reply) => {
     const body = request.body as { cidr?: string };
     if (!body?.cidr) {
-      return reply.status(400).send({ error: "Campo obrigatório: cidr" });
+      throw new AppError("VALIDATION_ERROR", 400, "Campo obrigatório: cidr");
     }
+    const range = cidrToFirstLast(body.cidr);
     const conflicts = await withTransaction(async (client) => {
-      const inventory = await findCidrConflicts(client, body.cidr!);
-      const allocations = await listAllocationConflicts(client, body.cidr!);
+      const inventory = await findCidrConflicts(client, range.firstIp, range.lastIp);
+      const allocations = await listAllocationConflicts(client, range.firstIp, range.lastIp);
       return { inventory, allocations };
     });
     if (conflicts.inventory.length > 0 || conflicts.allocations.length > 0) {

@@ -18,11 +18,12 @@ export async function updateJobStatus(
   client: PoolClient,
   id: string,
   status: JobRow["status"],
-  result: JobRow["result"] | null
+  result: JobRow["result"] | null,
+  lastError?: string | null
 ): Promise<void> {
   await client.query(
-    "UPDATE jobs SET status = $1, result = $2, updated_at = NOW() WHERE id = $3",
-    [status, result, id]
+    "UPDATE jobs SET status = $1, result = $2, last_error = $3, updated_at = NOW() WHERE id = $4",
+    [status, result, lastError ?? null, id]
   );
 }
 
