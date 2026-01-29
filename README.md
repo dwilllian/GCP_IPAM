@@ -60,6 +60,7 @@ Os scripts em `/scripts` criam recursos e fazem deploy no Cloud Run:
 - `03_create_tasks.sh`
 - `04_deploy_run.sh`
 - `05_smoke_test.sh`
+- `08_gcp_ipam_proxy_test.sh`
 
 ## Contrato de API
 Exemplos de uso em `contract/examples.http`.
@@ -67,6 +68,7 @@ Exemplos de uso em `contract/examples.http`.
 ### Integração com IPAM do Google (GDCH)
 O endpoint `POST /gcp/ipam/proxy` faz chamadas autenticadas para a API IPAM do Google, usando o token
 do metadata server do Cloud Run. O path e método devem seguir a documentação oficial do IPAM GDCH.
+
 
 ## Pesquisa de referência
 - Sumário da solução Infoblox vNIOS para Google Cloud: `docs/research/infoblox-vnios-google-cloud-summary.md`.
