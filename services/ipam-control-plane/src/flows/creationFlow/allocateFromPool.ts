@@ -10,9 +10,12 @@ export type AllocationRequest = {
   prefixLength: number;
   region: string;
   hostProjectId: string;
+  serviceProjectId?: string;
   network: string;
   owner?: string;
   purpose?: string;
+  metadata?: Record<string, unknown>;
+  expiresAt?: string;
 };
 
 export type AllocationResult = {
@@ -56,8 +59,11 @@ export async function allocateFromPool(client: PoolClient, payload: AllocationRe
     owner: payload.owner ?? null,
     purpose: payload.purpose ?? null,
     host_project_id: payload.hostProjectId,
+    service_project_id: payload.serviceProjectId ?? null,
     network: payload.network,
-    region: payload.region
+    region: payload.region,
+    metadata: payload.metadata ?? null,
+    expires_at: payload.expiresAt ?? null
   });
 
   const nextCursor = nextCursorIp(pool.parent_cidr, selectedCidr, payload.prefixLength);

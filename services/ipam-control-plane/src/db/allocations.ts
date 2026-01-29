@@ -6,6 +6,14 @@ export async function listAllocations(client: PoolClient): Promise<AllocationRow
   return result.rows;
 }
 
+export async function listAllocationsByPool(client: PoolClient, poolId: string): Promise<AllocationRow[]> {
+  const result = await client.query<AllocationRow>(
+    "SELECT * FROM ipam_allocations WHERE pool_id = $1 ORDER BY created_at DESC",
+    [poolId]
+  );
+  return result.rows;
+}
+
 export async function getAllocationById(client: PoolClient, id: string): Promise<AllocationRow | null> {
   const result = await client.query<AllocationRow>("SELECT * FROM ipam_allocations WHERE id = $1", [id]);
   return result.rows[0] ?? null;
@@ -15,13 +23,24 @@ export async function insertAllocation(
   client: PoolClient,
   allocation: Pick<
     AllocationRow,
-    "id" | "pool_id" | "cidr" | "status" | "owner" | "purpose" | "host_project_id" | "network" | "region"
+    | "id"
+    | "pool_id"
+    | "cidr"
+    | "status"
+    | "owner"
+    | "purpose"
+    | "host_project_id"
+    | "service_project_id"
+    | "network"
+    | "region"
+    | "metadata"
+    | "expires_at"
   >
 ): Promise<AllocationRow> {
   const result = await client.query<AllocationRow>(
     `INSERT INTO ipam_allocations
-      (id, pool_id, cidr, status, owner, purpose, host_project_id, network, region)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+      (id, pool_id, cidr, status, owner, purpose, host_project_id, service_project_id, network, region, metadata, expires_at)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
      RETURNING *`,
     [
       allocation.id,
@@ -31,8 +50,11 @@ export async function insertAllocation(
       allocation.owner,
       allocation.purpose,
       allocation.host_project_id,
+      allocation.service_project_id,
       allocation.network,
-      allocation.region
+      allocation.region,
+      allocation.metadata,
+      allocation.expires_at
     ]
   );
   return result.rows[0];
