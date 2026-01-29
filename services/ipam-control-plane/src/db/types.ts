@@ -16,8 +16,11 @@ export type AllocationRow = {
   owner: string | null;
   purpose: string | null;
   host_project_id: string | null;
+  service_project_id: string | null;
   network: string | null;
   region: string | null;
+  metadata: Record<string, unknown> | null;
+  expires_at: string | null;
   created_at: string;
   updated_at: string;
 };
