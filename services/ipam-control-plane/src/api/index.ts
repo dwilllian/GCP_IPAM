@@ -6,6 +6,7 @@ import { jobsRoutes } from "./jobs.js";
 import { networkRoutes } from "./network.js";
 import { taskRoutes } from "./tasks.js";
 import { auditRoutes } from "./audit.js";
+import { gcpIpamRoutes } from "./gcp-ipam.js";
 
 export async function registerRoutes(app: FastifyInstance) {
   await healthRoutes(app);
@@ -15,4 +16,5 @@ export async function registerRoutes(app: FastifyInstance) {
   await networkRoutes(app);
   await taskRoutes(app);
   await auditRoutes(app);
+  await gcpIpamRoutes(app);
 }
