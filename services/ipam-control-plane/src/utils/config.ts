@@ -6,7 +6,10 @@ export const config = {
   tasksProjectId: process.env.GCP_PROJECT ?? "",
   tasksServiceUrl: process.env.TASKS_SERVICE_URL ?? "",
   tasksServiceAccount: process.env.TASKS_SERVICE_ACCOUNT ?? "",
-  mockGcp: process.env.MOCK_GCP === "true"
+  mockGcp: process.env.MOCK_GCP === "true",
+  gcpIpamBaseUrl: process.env.GCP_IPAM_BASE_URL ?? "",
+  gcpIpamAccessToken: process.env.GCP_IPAM_ACCESS_TOKEN ?? "",
+  gcpIpamTimeoutMs: Number(process.env.GCP_IPAM_TIMEOUT_MS ?? 10000)
 };
 
 if (!config.databaseUrl) {

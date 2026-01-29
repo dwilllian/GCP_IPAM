@@ -29,9 +29,16 @@ Content-Type: application/json
   "prefixLength": 22,
   "region": "us-west1",
   "hostProjectId": "host-net-prd",
+  "serviceProjectId": "spoke-01",
   "network": "vpc-spoke-prd",
   "owner": "team-apigee",
-  "purpose": "apigee-range"
+  "purpose": "apigee-range",
+  "metadata": {
+    "application": "apigee",
+    "environment": "prod",
+    "tenant": "payments"
+  },
+  "expiresAt": "2030-01-01T00:00:00Z"
 }
 
 ### Validate /22
@@ -63,3 +70,18 @@ GET http://localhost:8080/inventory/subnets?hostProjectId=host-net-prd&region=us
 
 ### Listar routes
 GET http://localhost:8080/inventory/routes?projectId=host-net-prd
+
+### Summary do pool
+GET http://localhost:8080/ipam/pools/shared-prod/summary
+
+### Proxy para IPAM do Google (ajuste path conforme a documentação oficial)
+POST http://localhost:8080/gcp/ipam/proxy
+Content-Type: application/json
+
+{
+  "method": "GET",
+  "path": "/v1/projects/PROJECT_ID/locations/LOCATION/ipamRanges",
+  "query": {
+    "pageSize": "50"
+  }
+}

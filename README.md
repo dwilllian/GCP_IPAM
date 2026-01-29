@@ -36,6 +36,9 @@ Produto interno para IPAM + inventário de rede em GCP (sem Terraform), com API 
 - `TASKS_PROJECT_ID`
 - `TASKS_SERVICE_URL`
 - `TASKS_SERVICE_ACCOUNT`
+- `GCP_IPAM_BASE_URL` (base URL da API IPAM do Google, ex: https://<endpoint>/)
+- `GCP_IPAM_ACCESS_TOKEN` (opcional; se não definido, usa metadata server do Cloud Run)
+- `GCP_IPAM_TIMEOUT_MS` (default: 10000)
 - `MOCK_GCP=true` (para rodar sem chamadas reais)
 
 ### Rodar localmente
@@ -47,6 +50,7 @@ npm run dev
 
 ## Banco de dados
 Execute a migration em `db/migrations/001_init.sql` no Postgres.
+Em seguida, aplique a migration `db/migrations/002_allocation_metadata.sql` para habilitar metadados e expiração de reservas.
 
 ## Scripts de deploy
 Os scripts em `/scripts` criam recursos e fazem deploy no Cloud Run:
@@ -56,9 +60,28 @@ Os scripts em `/scripts` criam recursos e fazem deploy no Cloud Run:
 - `03_create_tasks.sh`
 - `04_deploy_run.sh`
 - `05_smoke_test.sh`
+- `08_gcp_ipam_proxy_test.sh`
 
 ## Contrato de API
 Exemplos de uso em `contract/examples.http`.
+
+### Integração com IPAM do Google (GDCH)
+O endpoint `POST /gcp/ipam/proxy` faz chamadas autenticadas para a API IPAM do Google, usando o token
+do metadata server do Cloud Run. O path e método devem seguir a documentação oficial do IPAM GDCH.
+
+Para testar rapidamente o proxy em Cloud Run, use o script `scripts/08_gcp_ipam_proxy_test.sh` com
+`API_BASE_URL` e `GCP_IPAM_PROXY_PATH` configurados.
+
+## Pesquisa de referência
+- Sumário da solução Infoblox vNIOS para Google Cloud: `docs/research/infoblox-vnios-google-cloud-summary.md`.
+
+### Extensões planejadas/recém-adicionadas
+- `GET /ipam/pools/:name/summary` retorna métricas de utilização do pool (endereços totais, alocados, livres e por status).
+- Backlog de alinhamento com IPAM corporativo (inspirado em referências de mercado como Infoblox e APIs IPAM do Google):
+  - Tags/atributos avançados por alocação (owner, tenant, aplicação, ambiente).
+  - Hierarquia de espaços de endereçamento (pools globais → regionais → projetos).
+  - Reservas temporárias com expiração e reconciliação automática.
+  - Métricas de utilização e tendência por pool/segmento.
 
 ## Dashboard (React + Material UI)
 O front-end está em `dashboard/` (Vite + React + MUI) e consome a API em `/api/allocations`.

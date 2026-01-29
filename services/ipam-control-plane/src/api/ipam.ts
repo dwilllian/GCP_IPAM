@@ -2,15 +2,75 @@ import { FastifyInstance } from "fastify";
 import { v4 as uuidv4 } from "uuid";
 import { withTransaction } from "../db/pool.js";
 import { allocateFromPool } from "../flows/creationFlow/allocateFromPool.js";
-import { listPools, insertPool } from "../db/pools.js";
-import { listAllocations, listAllocationConflicts } from "../db/allocations.js";
+import { getPoolByName, insertPool, listPools } from "../db/pools.js";
+import { listAllocationConflicts, listAllocations, listAllocationsByPool } from "../db/allocations.js";
 import { findCidrConflicts } from "../db/inventory.js";
-import { firstUsableIp } from "../utils/cidr.js";
+import { cidrSize, firstUsableIp } from "../utils/cidr.js";
 
 export async function ipamRoutes(app: FastifyInstance) {
   app.get("/ipam/pools", async (_request, reply) => {
     const pools = await withTransaction((client) => listPools(client));
     return reply.send(pools);
+  });
+
+  app.get("/ipam/pools/:name/summary", async (request, reply) => {
+    const params = request.params as { name?: string };
+    if (!params?.name) {
+      return reply.status(400).send({ error: "Campo obrigatório: name" });
+    }
+    const summary = await withTransaction(async (client) => {
+      const pool = await getPoolByName(client, params.name!);
+      if (!pool) {
+        return null;
+      }
+      const allocations = await listAllocationsByPool(client, pool.id);
+      return { pool, allocations };
+    });
+    if (!summary) {
+      return reply.status(404).send({ error: "Pool não encontrado" });
+    }
+
+    const totalAddresses = cidrSize(summary.pool.parent_cidr);
+    let activeAddresses = 0n;
+    let reservedAddresses = 0n;
+    let releasedAddresses = 0n;
+    let activeCount = 0;
+    let reservedCount = 0;
+    let releasedCount = 0;
+
+    for (const allocation of summary.allocations) {
+      const size = cidrSize(allocation.cidr);
+      if (allocation.status === "active") {
+        activeAddresses += size;
+        activeCount += 1;
+      } else if (allocation.status === "reserved") {
+        reservedAddresses += size;
+        reservedCount += 1;
+      } else {
+        releasedAddresses += size;
+        releasedCount += 1;
+      }
+    }
+
+    const allocatedAddresses = activeAddresses + reservedAddresses;
+    const availableAddresses = totalAddresses - allocatedAddresses;
+    const utilizationPercent =
+      totalAddresses === 0n ? 0 : Number((allocatedAddresses * 10000n) / totalAddresses) / 100;
+
+    return reply.send({
+      pool: summary.pool,
+      totals: {
+        totalAddresses: totalAddresses.toString(),
+        allocatedAddresses: allocatedAddresses.toString(),
+        availableAddresses: availableAddresses.toString(),
+        utilizationPercent
+      },
+      byStatus: {
+        active: { count: activeCount, addresses: activeAddresses.toString() },
+        reserved: { count: reservedCount, addresses: reservedAddresses.toString() },
+        released: { count: releasedCount, addresses: releasedAddresses.toString() }
+      }
+    });
   });
 
   app.post("/ipam/pools", async (request, reply) => {
@@ -36,9 +96,12 @@ export async function ipamRoutes(app: FastifyInstance) {
       prefixLength?: number;
       region?: string;
       hostProjectId?: string;
+      serviceProjectId?: string;
       network?: string;
       owner?: string;
       purpose?: string;
+      metadata?: Record<string, unknown>;
+      expiresAt?: string;
     };
     if (!body?.poolName || !body.prefixLength || !body.region || !body.hostProjectId || !body.network) {
       return reply.status(400).send({ error: "Campos obrigatórios: poolName, prefixLength, region, hostProjectId, network" });
@@ -50,9 +113,12 @@ export async function ipamRoutes(app: FastifyInstance) {
           prefixLength: body.prefixLength,
           region: body.region,
           hostProjectId: body.hostProjectId,
+          serviceProjectId: body.serviceProjectId,
           network: body.network,
           owner: body.owner,
-          purpose: body.purpose
+          purpose: body.purpose,
+          metadata: body.metadata,
+          expiresAt: body.expiresAt
         })
       );
       return reply.status(201).send(result);

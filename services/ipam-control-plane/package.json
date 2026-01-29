@@ -16,9 +16,9 @@
   "dependencies": {
     "@google-cloud/compute": "^4.4.0",
     "@google-cloud/resource-manager": "^5.0.1",
-    "@google-cloud/tasks": "^4.4.1",
+    "@google-cloud/tasks": "^6.2.1",
     "fastify": "^4.27.0",
-    "fastify-request-id": "^4.2.0",
+    "fastify-request-id": "^1.0.1",
     "ipaddr.js": "^2.1.0",
     "pg": "^8.11.5",
     "uuid": "^9.0.1"
@@ -27,6 +27,8 @@
     "@types/node": "^20.11.30",
     "@types/pg": "^8.11.5",
     "@types/uuid": "^9.0.8",
+    "@typescript-eslint/eslint-plugin": "^8.41.0",
+    "@typescript-eslint/parser": "^8.41.0",
     "eslint": "^8.57.0",
     "tsx": "^4.7.2",
     "typescript": "^5.4.2"

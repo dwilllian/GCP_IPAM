@@ -59,6 +59,11 @@ export function subnetSize(prefixLength: number): bigint {
   return 1n << hostBits;
 }
 
+export function cidrSize(cidr: string): bigint {
+  const range = cidrToRange(cidr);
+  return range.end - range.start + 1n;
+}
+
 export function alignToPrefix(value: bigint, parentStart: bigint, prefixLength: number): bigint {
   const size = subnetSize(prefixLength);
   const offset = value - parentStart;
