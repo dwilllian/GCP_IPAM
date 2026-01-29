@@ -69,8 +69,6 @@ Exemplos de uso em `contract/examples.http`.
 O endpoint `POST /gcp/ipam/proxy` faz chamadas autenticadas para a API IPAM do Google, usando o token
 do metadata server do Cloud Run. O path e método devem seguir a documentação oficial do IPAM GDCH.
 
-Para testar rapidamente o proxy em Cloud Run, use o script `scripts/08_gcp_ipam_proxy_test.sh` com
-`API_BASE_URL` e `GCP_IPAM_PROXY_PATH` configurados.
 
 ## Pesquisa de referência
 - Sumário da solução Infoblox vNIOS para Google Cloud: `docs/research/infoblox-vnios-google-cloud-summary.md`.
