@@ -59,3 +59,28 @@ Os scripts em `/scripts` criam recursos e fazem deploy no Cloud Run:
 
 ## Contrato de API
 Exemplos de uso em `contract/examples.http`.
+
+## Dashboard (React + Material UI)
+O front-end está em `dashboard/` (Vite + React + MUI) e consome a API em `/api/allocations`.
+Para ambientes estáticos, configure a variável `VITE_API_BASE_URL` apontando para a URL pública do
+serviço do Cloud Run.
+O acesso requer autenticação: o dashboard espera um endpoint `POST /login` que retorna `{ token }`
+e envia o token em `Authorization: Bearer <token>` nas chamadas seguintes.
+
+### Hospedagem estática no GCP
+Uso recomendado: **Cloud Storage** para arquivos estáticos (opcionalmente atrás de Cloud CDN/LB).
+
+1) Criar bucket para o site:
+```bash
+PROJECT_ID=seu-projeto BUCKET_NAME=ipam-dashboard-static ./scripts/06_create_static_site.sh
+```
+
+2) Publicar o dashboard com a URL da API:
+```bash
+PROJECT_ID=seu-projeto \\
+BUCKET_NAME=ipam-dashboard-static \\
+API_BASE_URL=https://ipam-control-plane-xxxxx-uc.a.run.app \\
+./scripts/07_deploy_dashboard.sh
+```
+
+Isso gera um site estático que apenas faz chamadas para a API quando o usuário interage.
