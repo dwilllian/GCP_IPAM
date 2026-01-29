@@ -7,10 +7,10 @@ import { AppError } from "../utils/errors.js";
 export async function jobsRoutes(app: FastifyInstance) {
   app.post("/jobs/discovery/run", async (request, reply) => {
     const body = request.body as { hostProjectId?: string; projectIds?: string[]; regions?: string[] };
-    if (!body?.hostProjectId) {
+    const hostProjectId = body?.hostProjectId;
+    if (!hostProjectId) {
       throw new AppError("VALIDATION_ERROR", 400, "Campo obrigatório: hostProjectId");
     }
-    const hostProjectId = body.hostProjectId as string;
     const job = await withTransaction((client) =>
       runDiscovery(client, {
         hostProjectId,
