@@ -15,7 +15,8 @@ export async function handleTask(client: PoolClient, payload: TaskPayload) {
 
   switch (payload.type) {
     case "discovery_project":
-      await handleDiscoveryProject(client, payload.jobId, payload.projectId);
+      await handleDiscoveryProject(client, payload.projectId);
+      await updateJobStatus(client, payload.jobId, "done", { projectId: payload.projectId });
       return;
     case "subnet_create":
       await handleSubnetCreate(client, payload);

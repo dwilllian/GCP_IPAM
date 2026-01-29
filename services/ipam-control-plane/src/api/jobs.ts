@@ -10,6 +10,13 @@ export async function jobsRoutes(app: FastifyInstance) {
     if (!body?.hostProjectId) {
       throw new AppError("VALIDATION_ERROR", 400, "Campo obrigatório: hostProjectId");
     }
+    const job = await withTransaction((client) =>
+      runDiscovery(client, {
+        hostProjectId: body.hostProjectId,
+        projectIds: body.projectIds,
+        regions: body.regions
+      })
+    );
     const job = await withTransaction((client) => runDiscovery(client, body));
     return reply.status(201).send(job);
   });

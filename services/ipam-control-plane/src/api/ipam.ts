@@ -87,13 +87,14 @@ export async function ipamRoutes(app: FastifyInstance) {
         "Campos obrigatórios: name, parentCidr, allowedPrefixes"
       );
     }
+    const { name, parentCidr, allowedPrefixes } = body;
     const pool = await withTransaction((client) =>
       insertPool(client, {
         id: uuidv4(),
-        name: body.name,
-        parent_cidr: body.parentCidr,
-        allowed_prefixes: body.allowedPrefixes,
-        cursor_ip: firstUsableIp(body.parentCidr)
+        name,
+        parent_cidr: parentCidr,
+        allowed_prefixes: allowedPrefixes,
+        cursor_ip: firstUsableIp(parentCidr)
       })
     );
     return reply.status(201).send(pool);
@@ -120,15 +121,16 @@ export async function ipamRoutes(app: FastifyInstance) {
         "Campos obrigatórios: poolName, prefixLength, region, hostProjectId, network"
       );
     }
+    const { poolName, prefixLength, region, hostProjectId, network } = body;
     try {
       const result = await withTransaction((client) =>
         allocateFromPool(client, {
-          poolName: body.poolName,
-          prefixLength: body.prefixLength,
-          region: body.region,
-          hostProjectId: body.hostProjectId,
+          poolName,
+          prefixLength,
+          region,
+          hostProjectId,
           serviceProjectId: body.serviceProjectId,
-          network: body.network,
+          network,
           owner: body.owner,
           purpose: body.purpose,
           metadata: body.metadata,

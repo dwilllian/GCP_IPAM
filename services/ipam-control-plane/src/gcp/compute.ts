@@ -35,24 +35,27 @@ export async function listSubnets(projectId: string, region?: string): Promise<S
       }
     ];
   }
-  const [subnets] = await subnetworksClient.aggregatedList({ project: projectId });
+  const [subnets] = await (subnetworksClient as unknown as {
+    aggregatedList: (req: { project: string }) => Promise<[Record<string, unknown>]>;
+  }).aggregatedList({ project: projectId });
   const result: SubnetInfo[] = [];
-  for (const [, scoped] of Object.entries(subnets.items ?? {})) {
-    for (const subnet of scoped.subnetworks ?? []) {
+  for (const [, scoped] of Object.entries((subnets as { items?: Record<string, unknown> }).items ?? {})) {
+    const scopedValue = scoped as { subnetworks?: Array<Record<string, unknown>> };
+    for (const subnet of scopedValue.subnetworks ?? []) {
       if (region && subnet.region && !subnet.region.includes(region)) {
         continue;
       }
       result.push({
-        name: subnet.name ?? "",
-        network: subnet.network ?? null,
-        region: subnet.region ?? null,
-        ipCidrRange: subnet.ipCidrRange ?? "",
+        name: (subnet.name as string) ?? "",
+        network: (subnet.network as string) ?? null,
+        region: (subnet.region as string) ?? null,
+        ipCidrRange: (subnet.ipCidrRange as string) ?? "",
         secondaryIpRanges:
-          subnet.secondaryIpRanges?.map((range) => ({
-            rangeName: range.rangeName ?? "",
-            ipCidrRange: range.ipCidrRange ?? ""
+          (subnet.secondaryIpRanges as Array<Record<string, unknown>> | undefined)?.map((range) => ({
+            rangeName: (range.rangeName as string) ?? "",
+            ipCidrRange: (range.ipCidrRange as string) ?? ""
           })) ?? [],
-        selfLink: subnet.selfLink ?? null
+        selfLink: (subnet.selfLink as string) ?? null
       });
     }
   }

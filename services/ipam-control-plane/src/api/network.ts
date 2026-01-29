@@ -15,11 +15,12 @@ export async function networkRoutes(app: FastifyInstance) {
     if (!body?.allocationId || !body.subnetName) {
       throw new AppError("VALIDATION_ERROR", 400, "Campos obrigatórios: allocationId, subnetName");
     }
+    const { allocationId, subnetName } = body;
     await withTransaction((client) =>
       handleSubnetCreate(client, {
         jobId: "sync",
-        allocationId: body.allocationId,
-        subnetName: body.subnetName,
+        allocationId,
+        subnetName,
         enablePrivateGoogleAccess: body.enablePrivateGoogleAccess,
         secondaryRanges: body.secondaryRanges
       })
@@ -36,12 +37,13 @@ export async function networkRoutes(app: FastifyInstance) {
         "Campos obrigatórios: hostProjectId, region, subnetName"
       );
     }
+    const { hostProjectId, region, subnetName } = body;
     await withTransaction((client) =>
       handleSubnetDelete(client, {
         jobId: "sync",
-        hostProjectId: body.hostProjectId,
-        region: body.region,
-        subnetName: body.subnetName,
+        hostProjectId,
+        region,
+        subnetName,
         allocationId: body.allocationId
       })
     );
